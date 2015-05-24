@@ -1,0 +1,114 @@
+---
+title: "Practical Machine Learning - Project"
+author: "Vinod Kannan"
+date: "Sunday, April 26, 2015"
+output: html_document
+---
+### Summary:
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. 
+
+In this project, goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants, to predict the manner in which they did the excersise.
+
+
+### Data :
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+
+### 1. Load library caret, data and cleanse
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+
+#load data
+training <- read.csv("./data/pml-training.csv")
+testing <- read.csv("./data/pml-testing.csv")
+
+#head(training)
+#head(testing)
+dim(training)
+dim(testing)
+
+#remove na columns
+training <- training[, colSums(is.na(training)) == 0] 
+testing <- testing[, colSums(is.na(testing)) == 0] 
+
+#remove columns that are not useful for this analysis
+classe <- training$classe
+trainRemove <- grepl("^X|timestamp|window", names(training))
+training <- training[, !trainRemove]
+trainCleaned <- training[, sapply(training, is.numeric)]
+trainCleaned$classe <- classe
+testRemove <- grepl("^X|timestamp|window", names(testing))
+testing <- testing[, !testRemove]
+testCleaned <- testing[, sapply(testing, is.numeric)]
+
+dim(trainCleaned)
+dim(testCleaned)
+
+
+```
+
+*Data contains*
+
+###2. Split training data into training and validation set ( 70:30 ratio)
+
+```{r}
+
+set.seed(1234567890) # For reproducibile purpose
+inTrain <- createDataPartition(trainCleaned$classe, p=0.70, list=F)
+trainData <- trainCleaned[inTrain, ]
+testData <- trainCleaned[-inTrain, ]
+
+```
+
+###3. Use Decision tree for prediction
+```{r}
+
+modFitDT <- rpart(classe ~ ., data=trainData, method="class")
+fancyRpartPlot(modFitDT)
+
+
+predictionsDT <- predict(modFitDT, testData, type = "class")
+confusionMatrix(predictionsDT, testData$classe)
+
+```
+
+
+###4. Using random forest for prediction
+
+```{r}
+
+modFitRF <- randomForest(classe ~. , data=trainData)
+predictionsRF <- predict(modFitRF, testData, type = "class")
+confusionMatrix(predictionsRF, testData$classe)
+
+```
+
+**Random forest is distinctly better for prediction as compared to decision tree based on the overall statistics**
+
+###5. For submission, generating files
+
+```{r}
+
+predictionsAssignment <- predict(modFitRF, testCleaned, type = "class")
+
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictionsAssignment)
+
+```
